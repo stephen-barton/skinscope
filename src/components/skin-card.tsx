@@ -30,9 +30,8 @@ interface SkinCardProps {
 
 export function SkinCard({ item, className }: SkinCardProps) {
   const rarityColor = getRarityColor(item.rarity)
-  const lowestPrice = Math.min(
-    ...[item.prices.steam, item.prices.csfloat, item.prices.skinport].filter((p): p is number => p != null)
-  )
+  const availablePrices = [item.prices?.steam, item.prices?.csfloat, item.prices?.skinport].filter((p): p is number => p != null)
+  const lowestPrice = availablePrices.length > 0 ? Math.min(...availablePrices) : 0
 
   return (
     <Link href={`/item/${item.slug}`}>

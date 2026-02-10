@@ -60,7 +60,38 @@ export default function ItemDetailPage({ params }: { params: Promise<{ slug: str
       setLoading(true)
       try {
         const res = await fetch(`/api/item/${slug}`)
-        if (res.ok) setItem(await res.json())
+        if (res.ok) {
+          const json = await res.json()
+          const d = json?.data ?? json
+          if (d?.market_hash_name) {
+            const name = d.market_hash_name as string
+            const apiPrices = Array.isArray(d.prices) ? d.prices : []
+            const prices = apiPrices.map((p: Record<string, unknown>) => ({
+              platform: (p.platform as string) ?? "unknown",
+              price: (p.price as number) ?? 0,
+              fee: 0,
+              finalCost: (p.price as number) ?? 0,
+              url: (p.url as string) ?? "#",
+            }))
+            const bestFloat = Array.isArray(d.listings) && d.listings.length > 0
+              ? (d.listings[0] as Record<string, unknown>)?.float_value as number | undefined
+              : undefined
+            const bestPrice = prices.length > 0
+              ? Math.min(...prices.map((p: { finalCost: number }) => p.finalCost))
+              : 0
+            setItem({
+              name,
+              weapon: name.split(" | ")[0] ?? "Unknown",
+              skin: name.split(" | ")[1]?.split(" (")[0] ?? name,
+              wear: name.match(/\(([^)]+)\)/)?.[1] ?? "Unknown",
+              rarity: "Mil-Spec Grade",
+              imageUrl: "",
+              floatValue: bestFloat ?? mockItem.floatValue,
+              dealScore: mockItem.dealScore,
+              prices,
+            })
+          }
+        }
       } catch { /* use mock */ }
       finally { setLoading(false) }
     }

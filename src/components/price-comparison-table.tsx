@@ -26,7 +26,10 @@ interface PriceComparisonTableProps {
 }
 
 export function PriceComparisonTable({ prices, className }: PriceComparisonTableProps) {
-  const lowestFinal = Math.min(...prices.map((p) => p.finalCost))
+  if (!prices || prices.length === 0) {
+    return <div className="text-sm text-zinc-500 p-4">No price data available</div>
+  }
+  const lowestFinal = Math.min(...prices.map((p) => p.finalCost ?? Infinity))
 
   return (
     <div className={cn("rounded-lg border border-zinc-800 overflow-hidden", className)}>

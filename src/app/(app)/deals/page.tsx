@@ -56,8 +56,33 @@ export default function DealsPage() {
       setLoading(true)
       try {
         const res = await fetch(`/api/deals?weapon=${weapon}&platform=${platform}&minScore=${minScore}`)
-        if (res.ok) setDeals(await res.json())
-        else setDeals(mockDeals)
+        if (res.ok) {
+          const json = await res.json()
+          const items = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : []
+          const mapped: SkinItem[] = items.map((d: Record<string, unknown>) => {
+            const name = (d.market_hash_name as string) ?? "Unknown"
+            const prices = (d.prices ?? {}) as Record<string, number | null>
+            return {
+              name,
+              slug: encodeURIComponent(name),
+              weapon: name.split(" | ")[0] ?? "Unknown",
+              skin: name.split(" | ")[1]?.split(" (")[0] ?? name,
+              wear: name.match(/\(([^)]+)\)/)?.[1] ?? "Unknown",
+              rarity: "Mil-Spec Grade",
+              imageUrl: "",
+              floatValue: (d.float_value as number) ?? undefined,
+              prices: {
+                steam: prices.steam ?? undefined,
+                csfloat: prices.csfloat ?? undefined,
+                skinport: prices.skinport ?? undefined,
+              },
+              dealScore: (d.deal_score as number) ?? 0,
+            }
+          })
+          setDeals(mapped.length > 0 ? mapped : mockDeals)
+        } else {
+          setDeals(mockDeals)
+        }
       } catch {
         setDeals(mockDeals)
       } finally {

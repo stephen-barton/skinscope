@@ -16,6 +16,7 @@ const wearRanges = [
 ]
 
 export function FloatBar({ value, className }: FloatBarProps) {
+  if (value == null || isNaN(value)) return null
   const percentage = Math.min(Math.max(value, 0), 1) * 100
 
   return (
