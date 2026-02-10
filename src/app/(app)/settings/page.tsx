@@ -13,7 +13,7 @@ export default function SettingsPage() {
   const isPro = false
   const [copied, setCopied] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const apiKey = "ss_demo_placeholder"
+  const apiKey = "ss_demo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
   const copyKey = () => {
     navigator.clipboard.writeText(apiKey)
