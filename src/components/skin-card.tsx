@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { DealScoreBadge } from "./deal-score-badge"
 import { FloatBar } from "./float-bar"
-import { formatPrice, getRarityColor, getWearAbbrev, cn } from "@/lib/utils"
+import { formatPrice, getRarityColor, getWearAbbrev, getSkinImageUrl, cn } from "@/lib/utils"
 
 export interface SkinItem {
   name: string
@@ -13,7 +13,7 @@ export interface SkinItem {
   skin: string
   wear: string
   rarity: string
-  imageUrl: string
+  imageUrl?: string
   floatValue?: number
   prices: {
     steam?: number
@@ -21,6 +21,8 @@ export interface SkinItem {
     skinport?: number
   }
   dealScore: number
+  skinportUrl?: string
+  steamUrl?: string
 }
 
 interface SkinCardProps {
@@ -32,6 +34,7 @@ export function SkinCard({ item, className }: SkinCardProps) {
   const rarityColor = getRarityColor(item.rarity)
   const availablePrices = [item.prices?.steam, item.prices?.csfloat, item.prices?.skinport].filter((p): p is number => p != null)
   const lowestPrice = availablePrices.length > 0 ? Math.min(...availablePrices) : 0
+  const imageUrl = item.imageUrl || getSkinImageUrl(item.name)
 
   return (
     <Link href={`/item/${item.slug}`}>
@@ -45,16 +48,29 @@ export function SkinCard({ item, className }: SkinCardProps) {
         <div className="absolute top-0 left-0 right-0 h-0.5" style={{ backgroundColor: rarityColor }} />
 
         {/* Deal score badge */}
-        <div className="absolute top-3 right-3 z-10">
-          <DealScoreBadge score={item.dealScore} size="sm" />
-        </div>
+        {item.dealScore > 0 && (
+          <div className="absolute top-3 right-3 z-10">
+            <DealScoreBadge score={item.dealScore} size="sm" />
+          </div>
+        )}
 
         {/* Image */}
         <div className="relative h-36 flex items-center justify-center p-4 bg-gradient-to-b from-zinc-900/50 to-transparent">
           <img
-            src={item.imageUrl}
+            src={imageUrl}
             alt={item.name}
             className="h-full w-auto object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform"
+            onError={(e) => {
+              const target = e.currentTarget
+              target.style.display = "none"
+              const parent = target.parentElement
+              if (parent && !parent.querySelector(".fallback-label")) {
+                const div = document.createElement("div")
+                div.className = "fallback-label text-center px-2"
+                div.innerHTML = `<div class="text-2xl mb-1">🔫</div><div class="text-xs text-zinc-400 font-medium">${item.weapon}</div><div class="text-[10px] text-zinc-500">${item.skin}</div>`
+                parent.appendChild(div)
+              }
+            }}
           />
         </div>
 
@@ -78,9 +94,9 @@ export function SkinCard({ item, className }: SkinCardProps) {
 
           {/* Prices */}
           <div className="grid grid-cols-3 gap-1 text-center">
-            {(["steam", "csfloat", "skinport"] as const).map((platform) => {
+            {(["steam", "skinport"] as const).map((platform) => {
               const price = item.prices[platform]
-              const isLowest = price === lowestPrice
+              const isLowest = price === lowestPrice && price != null
               return (
                 <div key={platform} className="rounded bg-zinc-900/50 px-1.5 py-1">
                   <p className="text-[9px] uppercase text-zinc-500 tracking-wider">{platform}</p>
@@ -90,6 +106,10 @@ export function SkinCard({ item, className }: SkinCardProps) {
                 </div>
               )
             })}
+            <div className="rounded bg-zinc-900/50 px-1.5 py-1">
+              <p className="text-[9px] uppercase text-zinc-500 tracking-wider">csfloat</p>
+              <p className="text-[9px] text-zinc-600 font-mono mt-0.5">Soon</p>
+            </div>
           </div>
         </div>
       </Card>

@@ -1,55 +1,22 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useCallback } from "react"
 import { SearchBar } from "@/components/search-bar"
 import { SkinCard, type SkinItem } from "@/components/skin-card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Clock, Filter } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, getSkinImageUrl } from "@/lib/utils"
 
 const weaponTypes = ["All", "Rifle", "Pistol", "SMG", "Shotgun", "Sniper", "Knife", "Gloves"]
 const rarities = ["All", "Consumer Grade", "Industrial Grade", "Mil-Spec", "Restricted", "Classified", "Covert", "Contraband"]
 const wears = ["All", "Factory New", "Minimal Wear", "Field-Tested", "Well-Worn", "Battle-Scarred"]
 
-const mockResults: SkinItem[] = [
-  {
-    name: "AK-47 | Asiimov (Field-Tested)", slug: "ak-47-asiimov-ft", weapon: "AK-47", skin: "Asiimov", wear: "Field-Tested",
-    rarity: "Covert", imageUrl: "https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UXnkJ5lZjP1qKXMxIi_ChOBel8-f0uldL6GOAk6V0ktDfbZ-JY_darPYDoE0joxPehCWJ_yAMeLXxft0ElRUKwpot7HxfP9e_tHKKT_9OoOO09oGIqPH2J6nUklRc7cF4n-T--YXygED6/200x150",
-    floatValue: 0.21, prices: { steam: 35.99, csfloat: 31.50, skinport: 32.20 }, dealScore: 72,
-  },
-  {
-    name: "AWP | Dragon Lore (Factory New)", slug: "awp-dragon-lore-fn", weapon: "AWP", skin: "Dragon Lore", wear: "Factory New",
-    rarity: "Covert", imageUrl: "https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UXnkJ5lZjP1qKXMxIi_ChOBel8-f0uldL6GOAk6V0ktDfbZ-JY_darPYDoE0joxPehCWJ_yAMeLXxft0ElRUKwpot7HxfP9e_tHKKT_9OoOO09oGIqPH2J6nUklRc7cF4n-T--YXygED6/200x150",
-    floatValue: 0.03, prices: { steam: 8500.00, csfloat: 7850.00, skinport: 8100.00 }, dealScore: 85,
-  },
-  {
-    name: "M4A4 | Howl (Minimal Wear)", slug: "m4a4-howl-mw", weapon: "M4A4", skin: "Howl", wear: "Minimal Wear",
-    rarity: "Contraband", imageUrl: "https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UXnkJ5lZjP1qKXMxIi_ChOBel8-f0uldL6GOAk6V0ktDfbZ-JY_darPYDoE0joxPehCWJ_yAMeLXxft0ElRUKwpot7HxfP9e_tHKKT_9OoOO09oGIqPH2J6nUklRc7cF4n-T--YXygED6/200x150",
-    floatValue: 0.09, prices: { steam: 4200.00, csfloat: 3950.00, skinport: 4100.00 }, dealScore: 62,
-  },
-  {
-    name: "USP-S | Kill Confirmed (Factory New)", slug: "usp-s-kill-confirmed-fn", weapon: "USP-S", skin: "Kill Confirmed", wear: "Factory New",
-    rarity: "Covert", imageUrl: "https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UXnkJ5lZjP1qKXMxIi_ChOBel8-f0uldL6GOAk6V0ktDfbZ-JY_darPYDoE0joxPehCWJ_yAMeLXxft0ElRUKwpot7HxfP9e_tHKKT_9OoOO09oGIqPH2J6nUklRc7cF4n-T--YXygED6/200x150",
-    floatValue: 0.02, prices: { steam: 89.99, csfloat: 82.50, skinport: 85.00 }, dealScore: 45,
-  },
-  {
-    name: "Glock-18 | Fade (Factory New)", slug: "glock-18-fade-fn", weapon: "Glock-18", skin: "Fade", wear: "Factory New",
-    rarity: "Restricted", imageUrl: "https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UXnkJ5lZjP1qKXMxIi_ChOBel8-f0uldL6GOAk6V0ktDfbZ-JY_darPYDoE0joxPehCWJ_yAMeLXxft0ElRUKwpot7HxfP9e_tHKKT_9OoOO09oGIqPH2J6nUklRc7cF4n-T--YXygED6/200x150",
-    floatValue: 0.01, prices: { steam: 1450.00, csfloat: 1380.00, skinport: 1400.00 }, dealScore: 55,
-  },
-  {
-    name: "Desert Eagle | Blaze (Factory New)", slug: "desert-eagle-blaze-fn", weapon: "Desert Eagle", skin: "Blaze", wear: "Factory New",
-    rarity: "Restricted", imageUrl: "https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UXnkJ5lZjP1qKXMxIi_ChOBel8-f0uldL6GOAk6V0ktDfbZ-JY_darPYDoE0joxPehCWJ_yAMeLXxft0ElRUKwpot7HxfP9e_tHKKT_9OoOO09oGIqPH2J6nUklRc7cF4n-T--YXygED6/200x150",
-    floatValue: 0.005, prices: { steam: 420.00, csfloat: 395.00, skinport: 410.00 }, dealScore: 38,
-  },
-]
-
 export default function SearchPage() {
-  const [results, setResults] = useState<SkinItem[]>(mockResults)
+  const [results, setResults] = useState<SkinItem[]>([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState("")
+  const [hasSearched, setHasSearched] = useState(false)
   const [selectedWeapon, setSelectedWeapon] = useState("All")
   const [selectedRarity, setSelectedRarity] = useState("All")
   const [selectedWear, setSelectedWear] = useState("All")
@@ -57,14 +24,40 @@ export default function SearchPage() {
 
   const search = useCallback(async (q: string) => {
     setQuery(q)
-    if (!q) { setResults(mockResults); return }
+    setHasSearched(true)
+    if (!q) { setResults([]); return }
     setLoading(true)
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&weapon=${selectedWeapon}&rarity=${selectedRarity}&wear=${selectedWear}`)
-      if (res.ok) setResults(await res.json())
-      else setResults(mockResults.filter((r) => r.name.toLowerCase().includes(q.toLowerCase())))
+      if (res.ok) {
+        const json = await res.json()
+        const items = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : []
+        const mapped: SkinItem[] = items.map((d: Record<string, unknown>) => {
+          const name = (d.market_hash_name as string) ?? "Unknown"
+          const prices = (d.prices ?? {}) as Record<string, number | null>
+          return {
+            name,
+            slug: encodeURIComponent(name),
+            weapon: name.split(" | ")[0] ?? "Unknown",
+            skin: name.split(" | ")[1]?.split(" (")[0] ?? name,
+            wear: name.match(/\(([^)]+)\)/)?.[1] ?? "",
+            rarity: "Mil-Spec Grade",
+            imageUrl: getSkinImageUrl(name),
+            prices: {
+              steam: undefined,
+              csfloat: undefined,
+              skinport: (prices.skinport as number) ?? undefined,
+            },
+            dealScore: 0,
+            skinportUrl: (d.skinport_url as string) ?? undefined,
+          }
+        })
+        setResults(mapped)
+      } else {
+        setResults([])
+      }
     } catch {
-      setResults(mockResults.filter((r) => r.name.toLowerCase().includes(q.toLowerCase())))
+      setResults([])
     } finally {
       setLoading(false)
     }
@@ -110,18 +103,30 @@ export default function SearchPage() {
 
       {/* Results */}
       <div>
-        <p className="text-sm text-zinc-500 mb-4">{results.length} results{query && ` for "${query}"`}</p>
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <Skeleton key={i} className="h-72 bg-zinc-800/50 rounded-lg" />
             ))}
           </div>
+        ) : results.length > 0 ? (
+          <>
+            <p className="text-sm text-zinc-500 mb-4">{results.length} results{query && ` for "${query}"`}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {results.map((item) => (
+                <SkinCard key={item.slug} item={item} />
+              ))}
+            </div>
+          </>
+        ) : hasSearched ? (
+          <div className="text-center py-16">
+            <p className="text-zinc-500 text-lg">No results found{query && ` for "${query}"`}</p>
+            <p className="text-zinc-600 text-sm mt-1">Try a different search term</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {results.map((item) => (
-              <SkinCard key={item.slug} item={item} />
-            ))}
+          <div className="text-center py-16">
+            <p className="text-zinc-500 text-lg">Search for CS2 skins</p>
+            <p className="text-zinc-600 text-sm mt-1">Type a skin name to compare prices across platforms</p>
           </div>
         )}
       </div>

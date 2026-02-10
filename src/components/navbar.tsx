@@ -2,11 +2,13 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Search, TrendingUp, Bell, Settings, Menu, X, Crosshair } from "lucide-react"
+import { Search, TrendingUp, Bell, Settings, Menu, X, Crosshair, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useUser } from "@/hooks/use-user"
+import { createClient } from "@/lib/supabase/client"
 
 const navItems = [
   { href: "/search", label: "Search", icon: Search },
@@ -17,8 +19,16 @@ const navItems = [
 
 export function Navbar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const isPro = false // Will be dynamic
+  const { user, profile, isLoading } = useUser()
+  const isPro = profile?.tier === "pro"
+
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/")
+  }
 
   return (
     <nav className="sticky top-0 z-50 border-b border-zinc-800/50 bg-[#0a0a0a]/80 backdrop-blur-xl">
@@ -67,9 +77,23 @@ export function Navbar() {
           >
             {isPro ? "PRO" : "FREE — 60s delay"}
           </Badge>
-          <Button size="sm" variant="outline" className="text-xs h-8 border-zinc-700 text-zinc-400 hover:text-zinc-100">
-            Sign In
-          </Button>
+          {!isLoading && (
+            user ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-8 border-zinc-700 text-zinc-400 hover:text-zinc-100"
+                onClick={handleSignOut}
+              >
+                <LogOut className="w-3.5 h-3.5 mr-1" />
+                Sign Out
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="text-xs h-8 border-zinc-700 text-zinc-400 hover:text-zinc-100" asChild>
+                <Link href="/auth/login">Sign In</Link>
+              </Button>
+            )
+          )}
           <button
             className="md:hidden text-zinc-400 hover:text-zinc-100"
             onClick={() => setMobileOpen(!mobileOpen)}
@@ -100,6 +124,15 @@ export function Navbar() {
               </Link>
             )
           })}
+          {user && (
+            <button
+              onClick={() => { setMobileOpen(false); handleSignOut() }}
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-red-400 hover:text-red-300 w-full"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </button>
+          )}
         </div>
       )}
     </nav>

@@ -4,12 +4,6 @@ import { fetchSkinportItems } from "@/lib/api/skinport";
 
 export const dynamic = "force-dynamic";
 
-interface PlatformPrice {
-  platform: string;
-  price: number | null;
-  url: string | null;
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
@@ -19,8 +13,7 @@ export async function GET(
     const marketName = decodeURIComponent(name);
 
     const sources: string[] = [];
-    const prices: PlatformPrice[] = [];
-    let listings: unknown[] = [];
+    const prices: { platform: string; price: number | null; url: string }[] = [];
 
     // 1. Skinport
     try {
@@ -32,7 +25,7 @@ export async function GET(
         prices.push({
           platform: "skinport",
           price: match.min_price ?? match.suggested_price,
-          url: match.item_page,
+          url: match.item_page ?? `https://skinport.com`,
         });
         sources.push("skinport");
       }
@@ -40,7 +33,7 @@ export async function GET(
       sources.push("skinport:error");
     }
 
-    // 2. Steam Market
+    // 2. Steam Market price
     try {
       const steamRes = await fetch(
         `https://steamcommunity.com/market/priceoverview/?appid=730&currency=1&market_hash_name=${encodeURIComponent(marketName)}`,
@@ -66,41 +59,8 @@ export async function GET(
       sources.push("steam:error");
     }
 
-    // 3. CSFloat
-    try {
-      const cfRes = await fetch(
-        `https://csfloat.com/api/v1/listings?market_hash_name=${encodeURIComponent(marketName)}&limit=20`,
-        { next: { revalidate: 60 } }
-      );
-      if (cfRes.ok) {
-        const cfData = await cfRes.json();
-        const items = cfData.data ?? cfData ?? [];
-        listings = items.map((l: Record<string, unknown>) => ({
-          id: l.id,
-          price: typeof l.price === "number" ? l.price / 100 : null,
-          float_value: (l.item as Record<string, unknown>)?.float_value ?? null,
-          paint_seed: (l.item as Record<string, unknown>)?.paint_seed ?? null,
-          stickers: (l.item as Record<string, unknown>)?.stickers ?? [],
-        }));
-        const lowestCf = items.reduce(
-          (min: number, l: Record<string, unknown>) => {
-            const p = typeof l.price === "number" ? l.price / 100 : Infinity;
-            return p < min ? p : min;
-          },
-          Infinity
-        );
-        if (lowestCf < Infinity) {
-          prices.push({
-            platform: "csfloat",
-            price: lowestCf,
-            url: `https://csfloat.com/search?market_hash_name=${encodeURIComponent(marketName)}`,
-          });
-          sources.push("csfloat");
-        }
-      }
-    } catch {
-      sources.push("csfloat:error");
-    }
+    // CSFloat requires auth — disabled for now
+    sources.push("csfloat:disabled");
 
     if (prices.length === 0) {
       return error("Item not found on any platform", 404, "ITEM_NOT_FOUND");
@@ -114,7 +74,7 @@ export async function GET(
       market_hash_name: marketName,
       prices,
       best_price: best,
-      listings,
+      listings: [],
       sources,
     });
   } catch (e) {

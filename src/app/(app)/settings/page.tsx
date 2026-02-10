@@ -7,10 +7,15 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Settings, Crown, Key, Trash2, Copy, Check, Zap } from "lucide-react"
+import { Settings, Crown, Key, Trash2, Copy, Check, Zap, LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useUser } from "@/hooks/use-user"
+import { createClient } from "@/lib/supabase/client"
 
 export default function SettingsPage() {
-  const isPro = false
+  const router = useRouter()
+  const { user, profile } = useUser()
+  const isPro = profile?.tier === "pro"
   const [copied, setCopied] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const apiKey = "ss_demo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -107,6 +112,29 @@ export default function SettingsPage() {
           </div>
         )}
       </Card>
+
+      {/* Sign Out */}
+      {user && (
+        <Card className="p-6 bg-[#141414] border-zinc-800/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-100">Account</h2>
+              <p className="text-sm text-zinc-500 mt-1">{user.email}</p>
+            </div>
+            <Button
+              variant="outline"
+              className="border-zinc-700 text-zinc-400 hover:text-zinc-100"
+              onClick={async () => {
+                const supabase = createClient()
+                await supabase.auth.signOut()
+                router.push("/")
+              }}
+            >
+              <LogOut className="w-4 h-4 mr-1" /> Sign Out
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Separator className="bg-zinc-800/50" />
 

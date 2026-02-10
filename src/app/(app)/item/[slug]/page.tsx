@@ -2,103 +2,88 @@
 
 import { useState, useEffect, use } from "react"
 import { PriceComparisonTable } from "@/components/price-comparison-table"
-import { PriceChart } from "@/components/price-chart"
 import { DealScoreBadge } from "@/components/deal-score-badge"
 import { FloatBar } from "@/components/float-bar"
-import { StickerRow } from "@/components/sticker-row"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ExternalLink, ArrowLeft } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { formatPrice, getRarityColor, getWearAbbrev } from "@/lib/utils"
+import { formatPrice, getRarityColor, getWearAbbrev, getSkinImageUrl } from "@/lib/utils"
 
-const mockItem = {
-  name: "AK-47 | Asiimov",
-  weapon: "AK-47",
-  skin: "Asiimov",
-  wear: "Field-Tested",
-  rarity: "Covert",
-  imageUrl: "https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UXnkJ5lZjP1qKXMxIi_ChOBel8-f0uldL6GOAk6V0ktDfbZ-JY_darPYDoE0joxPehCWJ_yAMeLXxft0ElRUKwpot7HxfP9e_tHKKT_9OoOO09oGIqPH2J6nUklRc7cF4n-T--YXygED6/400x300",
-  floatValue: 0.21,
-  dealScore: 72,
-  prices: [
-    { platform: "Steam", price: 35.99, fee: 5.04, finalCost: 41.03, url: "https://store.steampowered.com" },
-    { platform: "CSFloat", price: 31.50, fee: 1.58, finalCost: 33.08, url: "https://csfloat.com" },
-    { platform: "Skinport", price: 32.20, fee: 3.86, finalCost: 36.06, url: "https://skinport.com" },
-  ],
+interface ItemData {
+  name: string
+  weapon: string
+  skin: string
+  wear: string
+  rarity: string
+  imageUrl: string
+  floatValue?: number
+  dealScore: number
+  prices: { platform: string; price: number; fee: number; finalCost: number; url: string }[]
 }
-
-const mockPriceHistory = Array.from({ length: 90 }, (_, i) => {
-  const date = new Date(Date.now() - (90 - i) * 86400000)
-  const base = 32
-  return {
-    date: `${date.getMonth() + 1}/${date.getDate()}`,
-    steam: +(base + 4 + Math.sin(i / 10) * 2 + Math.random() * 1.5).toFixed(2),
-    csfloat: +(base + Math.sin(i / 10) * 1.8 + Math.random() * 1.2).toFixed(2),
-    skinport: +(base + 1.5 + Math.sin(i / 10) * 1.5 + Math.random() * 1).toFixed(2),
-  }
-})
-
-const mockListings = [
-  { id: "1", price: 31.50, floatValue: 0.21, stickers: [{ name: "Navi Holo" }, { name: "s1mple" }], dealScore: 72, url: "https://csfloat.com" },
-  { id: "2", price: 32.00, floatValue: 0.15, stickers: [{ name: "Titan Holo" }], dealScore: 68, url: "https://csfloat.com" },
-  { id: "3", price: 32.80, floatValue: 0.28, stickers: [], dealScore: 55, url: "https://csfloat.com" },
-  { id: "4", price: 33.20, floatValue: 0.32, stickers: [{ name: "Crown Foil" }, { name: "Crown Foil" }], dealScore: 48, url: "https://csfloat.com" },
-  { id: "5", price: 34.00, floatValue: 0.37, stickers: [], dealScore: 35, url: "https://csfloat.com" },
-]
 
 export default function ItemDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
-  const [item, setItem] = useState(mockItem)
-  const [loading, setLoading] = useState(false)
+  const [item, setItem] = useState<ItemData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState("")
 
   useEffect(() => {
     const fetchItem = async () => {
       setLoading(true)
+      setErrorMsg("")
       try {
-        const res = await fetch(`/api/item/${slug}`)
+        const marketName = decodeURIComponent(slug)
+        const res = await fetch(`/api/item/${encodeURIComponent(marketName)}`)
         if (res.ok) {
           const json = await res.json()
           const d = json?.data ?? json
           if (d?.market_hash_name) {
             const name = d.market_hash_name as string
             const apiPrices = Array.isArray(d.prices) ? d.prices : []
-            const prices = apiPrices.map((p: Record<string, unknown>) => ({
-              platform: (p.platform as string) ?? "unknown",
-              price: (p.price as number) ?? 0,
-              fee: 0,
-              finalCost: (p.price as number) ?? 0,
-              url: (p.url as string) ?? "#",
-            }))
-            const bestFloat = Array.isArray(d.listings) && d.listings.length > 0
-              ? (d.listings[0] as Record<string, unknown>)?.float_value as number | undefined
-              : undefined
-            const bestPrice = prices.length > 0
-              ? Math.min(...prices.map((p: { finalCost: number }) => p.finalCost))
-              : 0
+            const prices = apiPrices
+              .filter((p: Record<string, unknown>) => p.price != null)
+              .map((p: Record<string, unknown>) => {
+                const platform = (p.platform as string) ?? "unknown"
+                const price = (p.price as number) ?? 0
+                // Estimate fees
+                const feeRate = platform === "steam" ? 0.13 : platform === "skinport" ? 0.12 : 0.05
+                const fee = +(price * feeRate).toFixed(2)
+                return {
+                  platform: platform.charAt(0).toUpperCase() + platform.slice(1),
+                  price,
+                  fee,
+                  finalCost: +(price + fee).toFixed(2),
+                  url: (p.url as string) ?? "#",
+                }
+              })
+
             setItem({
               name,
               weapon: name.split(" | ")[0] ?? "Unknown",
               skin: name.split(" | ")[1]?.split(" (")[0] ?? name,
-              wear: name.match(/\(([^)]+)\)/)?.[1] ?? "Unknown",
+              wear: name.match(/\(([^)]+)\)/)?.[1] ?? "",
               rarity: "Mil-Spec Grade",
-              imageUrl: "",
-              floatValue: bestFloat ?? mockItem.floatValue,
-              dealScore: mockItem.dealScore,
+              imageUrl: getSkinImageUrl(name),
+              floatValue: undefined,
+              dealScore: 0,
               prices,
             })
+          } else {
+            setErrorMsg("Item not found")
           }
+        } else {
+          setErrorMsg("Item not found on any platform")
         }
-      } catch { /* use mock */ }
-      finally { setLoading(false) }
+      } catch {
+        setErrorMsg("Failed to load item details")
+      } finally {
+        setLoading(false)
+      }
     }
     fetchItem()
   }, [slug])
-
-  const rarityColor = getRarityColor(item.rarity)
 
   if (loading) {
     return (
@@ -111,6 +96,21 @@ export default function ItemDetailPage({ params }: { params: Promise<{ slug: str
       </div>
     )
   }
+
+  if (errorMsg || !item) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        <Link href="/search" className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back to search
+        </Link>
+        <div className="text-center py-16">
+          <p className="text-zinc-500 text-lg">{errorMsg || "Item not found"}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const rarityColor = getRarityColor(item.rarity)
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
@@ -125,7 +125,22 @@ export default function ItemDetailPage({ params }: { params: Promise<{ slug: str
         <Card className="bg-[#141414] border-zinc-800/50 p-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: rarityColor }} />
           <div className="flex items-center justify-center h-64">
-            <img src={item.imageUrl} alt={item.name} className="max-h-full w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.5)]" />
+            <img
+              src={item.imageUrl}
+              alt={item.name}
+              className="max-h-full w-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+              onError={(e) => {
+                const target = e.currentTarget
+                target.style.display = "none"
+                const parent = target.parentElement
+                if (parent && !parent.querySelector(".fallback-label")) {
+                  const div = document.createElement("div")
+                  div.className = "fallback-label text-center"
+                  div.innerHTML = `<div class="text-5xl mb-2">🔫</div><div class="text-lg text-zinc-400 font-medium">${item.weapon}</div><div class="text-sm text-zinc-500">${item.skin}</div>`
+                  parent.appendChild(div)
+                }
+              }}
+            />
           </div>
         </Card>
 
@@ -138,8 +153,9 @@ export default function ItemDetailPage({ params }: { params: Promise<{ slug: str
               <Badge variant="outline" style={{ borderColor: `${rarityColor}50`, color: rarityColor, backgroundColor: `${rarityColor}10` }}>
                 {item.rarity}
               </Badge>
-              <span className="text-sm text-zinc-500 font-mono">{item.wear} ({getWearAbbrev(item.wear)})</span>
-              <DealScoreBadge score={item.dealScore} />
+              {item.wear && (
+                <span className="text-sm text-zinc-500 font-mono">{item.wear} ({getWearAbbrev(item.wear)})</span>
+              )}
             </div>
           </div>
 
@@ -151,54 +167,15 @@ export default function ItemDetailPage({ params }: { params: Promise<{ slug: str
           )}
 
           <PriceComparisonTable prices={item.prices} />
+
+          {/* CSFloat notice */}
+          <div className="rounded-lg bg-zinc-900/50 border border-zinc-800/50 p-3">
+            <p className="text-xs text-zinc-500">
+              <span className="text-zinc-400 font-medium">CSFloat</span> — Coming soon. CSFloat integration requires authentication and is being set up.
+            </p>
+          </div>
         </div>
       </div>
-
-      {/* Price Chart */}
-      <Card className="bg-[#141414] border-zinc-800/50 p-6">
-        <PriceChart data={mockPriceHistory} />
-      </Card>
-
-      {/* Listings */}
-      <Card className="bg-[#141414] border-zinc-800/50 p-6">
-        <h3 className="text-lg font-semibold text-zinc-100 mb-4">CSFloat Listings</h3>
-        <div className="rounded-lg border border-zinc-800 overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-zinc-800 hover:bg-transparent">
-                <TableHead className="text-zinc-400">Price</TableHead>
-                <TableHead className="text-zinc-400">Float</TableHead>
-                <TableHead className="text-zinc-400">Stickers</TableHead>
-                <TableHead className="text-zinc-400">Deal Score</TableHead>
-                <TableHead className="text-zinc-400"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockListings.map((listing) => (
-                <TableRow key={listing.id} className="border-zinc-800/50">
-                  <TableCell className="font-mono font-bold text-zinc-200">{formatPrice(listing.price)}</TableCell>
-                  <TableCell>
-                    <FloatBar value={listing.floatValue} className="w-24" />
-                  </TableCell>
-                  <TableCell>
-                    <StickerRow stickers={listing.stickers} />
-                  </TableCell>
-                  <TableCell>
-                    <DealScoreBadge score={listing.dealScore} size="sm" />
-                  </TableCell>
-                  <TableCell>
-                    <Button size="sm" variant="outline" asChild className="h-7 text-xs border-zinc-700">
-                      <a href={listing.url} target="_blank" rel="noopener noreferrer">
-                        Buy <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
     </div>
   )
 }

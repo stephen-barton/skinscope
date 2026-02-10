@@ -32,3 +32,23 @@ export function getWearAbbrev(wear: string): string {
   }
   return abbrevs[wear] || wear
 }
+
+/** Build a Steam CDN image URL for a CS2 skin via steamapis.com redirect */
+export function getSkinImageUrl(marketHashName: string): string {
+  return `https://api.steamapis.com/image/item/730/${encodeURIComponent(marketHashName)}`
+}
+
+/** Build a Skinport buy URL from item_page or market_hash_name */
+export function getSkinportUrl(itemPage?: string | null, marketHashName?: string): string {
+  if (itemPage) return itemPage
+  if (marketHashName) {
+    const slug = marketHashName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+    return `https://skinport.com/item/${slug}`
+  }
+  return "https://skinport.com"
+}
+
+/** Build a Steam Market listing URL */
+export function getSteamMarketUrl(marketHashName: string): string {
+  return `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`
+}

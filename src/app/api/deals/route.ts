@@ -9,74 +9,64 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const limit = Math.min(Number(searchParams.get("limit") ?? 20), 50);
     const offset = Number(searchParams.get("offset") ?? 0);
+    const weaponFilter = searchParams.get("weapon")?.toLowerCase();
+    const minScore = Number(searchParams.get("minScore") ?? 0);
 
-    // Fetch CSFloat best deals
-    let csfloatListings: Record<string, unknown>[] = [];
-    try {
-      const cfRes = await fetch(
-        "https://csfloat.com/api/v1/listings?sort_by=best_deal&limit=50",
-        { next: { revalidate: 30 } }
-      );
-      if (cfRes.ok) {
-        const cfData = await cfRes.json();
-        csfloatListings = cfData.data ?? cfData ?? [];
-      }
-    } catch {
-      // CSFloat unavailable
-    }
+    // Get Skinport prices — our primary data source
+    const spItems = await fetchSkinportItems();
 
-    // Get Skinport prices for comparison
-    let skinportMap: Record<string, number> = {};
-    try {
-      const spItems = await fetchSkinportItems();
-      for (const item of spItems) {
-        skinportMap[item.market_hash_name] =
-          item.min_price ?? item.suggested_price;
-      }
-    } catch {
-      // Skinport unavailable
-    }
-
-    // Calculate deal scores
-    const deals = csfloatListings
-      .map((listing) => {
-        const item = listing.item as Record<string, unknown> | undefined;
-        const name = (item?.market_hash_name as string) ?? "Unknown";
-        const csfloatPrice =
-          typeof listing.price === "number" ? listing.price / 100 : null;
-        const skinportPrice = skinportMap[name] ?? null;
-
-        let dealScore = 0;
-        if (csfloatPrice && skinportPrice && skinportPrice > 0) {
-          dealScore = Math.round(
-            ((skinportPrice - csfloatPrice) / skinportPrice) * 100
-          );
-        }
-
+    // Build deals from Skinport data: items where min_price < suggested_price (discount)
+    const deals = spItems
+      .filter((item) => {
+        if (!item.min_price || !item.suggested_price || item.suggested_price <= 0) return false;
+        if (item.min_price >= item.suggested_price) return false;
+        // Only include items with actual prices
+        if (item.min_price < 0.5) return false;
+        return true;
+      })
+      .map((item) => {
+        const discount = Math.round(
+          ((item.suggested_price - item.min_price!) / item.suggested_price) * 100
+        );
         return {
-          id: listing.id,
-          market_hash_name: name,
+          market_hash_name: item.market_hash_name,
           prices: {
-            csfloat: csfloatPrice,
-            skinport: skinportPrice,
+            skinport: item.min_price,
+            steam: item.suggested_price, // suggested_price approximates Steam price
+            csfloat: null,
           },
-          deal_score: dealScore,
-          float_value: item?.float_value ?? null,
-          paint_seed: item?.paint_seed ?? null,
-          stickers: item?.stickers ?? [],
+          deal_score: Math.min(discount, 99),
+          float_value: null,
+          quantity: item.quantity,
+          item_page: item.item_page,
+          steam_url: `https://steamcommunity.com/market/listings/730/${encodeURIComponent(item.market_hash_name)}`,
         };
+      })
+      .filter((d) => d.deal_score >= minScore)
+      .filter((d) => {
+        if (!weaponFilter || weaponFilter === "all") return true;
+        const name = d.market_hash_name.toLowerCase();
+        // Map filter categories to weapon names
+        const weaponMap: Record<string, string[]> = {
+          rifle: ["ak-47", "m4a4", "m4a1-s", "famas", "galil", "aug", "sg 553"],
+          pistol: ["glock", "usp-s", "p250", "five-seven", "tec-9", "desert eagle", "dual berettas", "cz75", "r8 revolver"],
+          smg: ["mp9", "mac-10", "mp7", "mp5", "ump-45", "p90", "pp-bizon"],
+          sniper: ["awp", "ssg 08", "scar-20", "g3sg1"],
+          shotgun: ["nova", "xm1014", "mag-7", "sawed-off"],
+          knife: ["knife", "karambit", "bayonet", "butterfly", "navaja", "stiletto", "talon", "ursus", "bowie", "falchion", "gut", "flip", "huntsman", "shadow daggers", "paracord", "survival", "nomad", "skeleton", "classic"],
+        };
+        const weapons = weaponMap[weaponFilter];
+        if (!weapons) return true;
+        return weapons.some((w) => name.includes(w));
       })
       .sort((a, b) => b.deal_score - a.deal_score);
 
-    // Free tier: cap at 10
-    const maxItems = Math.min(limit, 10); // TODO: check subscription for full access
-    const paged = deals.slice(offset, offset + maxItems);
+    const paged = deals.slice(offset, offset + limit);
 
     return success(paged, {
       total: deals.length,
-      limit: maxItems,
+      limit,
       offset,
-      free_tier_cap: 10,
     });
   } catch (e) {
     console.error("Deals error:", e);
